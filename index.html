@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<link rel="shortcut icon" href=".\L.png" type="image/x-icon">
 <title>Looplev - Caixa (Arquivo único)</title>
 
 <style>
@@ -238,10 +237,14 @@
         <h3>Pagamento Cartão</h3>
         <p style="margin:4px 0;">Valor a pagar:</p>
         <div class="valor-display" id="cartaoValorDisplay">R$ 0,00</div>
-        <div style="margin-top:10px;display:flex;gap:8px;">
-            <button id="finalizarCartaoBtn" class="checkout-button">Pagamento Confirmado</button>
-            <button id="cancelarCartaoBtn" class="checkout-button" style="background:#ccc;color:#222;">Cancelar</button>
+        
+        <div style="display:flex; gap:8px; margin-top:12px;">
+            <button class="checkout-button card-type-btn" data-type="Crédito" style="flex:1;">Crédito</button>
+            <button class="checkout-button card-type-btn" data-type="Débito" style="flex:1;">Débito</button>
+            <button class="checkout-button card-type-btn" data-type="Online" style="flex:1; background:#007bff;">Online</button>
         </div>
+
+        <button id="cancelarCartaoBtn" class="checkout-button" style="margin-top:10px; background:#ccc;color:#222;">Cancelar</button>
     </div>
 </div>
 
@@ -315,7 +318,6 @@ const btnPrintLastReceipt = document.getElementById('btnPrintLastReceipt');
 const cpfNotaInput = document.getElementById('cpfNotaInput');
 const totalQuickSpan = document.getElementById('totalQuick');
 
-// NOVOS SELECTORS PARA OS ELEMENTOS DE TOTAL A SEREM ESCONDIDOS
 const headerTotalContainer = document.getElementById('headerTotalDoDiaContainer');
 const quickTotalContainer = document.getElementById('quickTotalContainer');
 
@@ -337,8 +339,10 @@ const IMPRIMIR_PIX_BTN = document.getElementById('imprimirPixBtn');
 
 const CARTAO_MODAL = document.getElementById('cartaoModal');
 const CARTAO_VALOR_DISPLAY = document.getElementById('cartaoValorDisplay');
-const FINALIZAR_CARTAO_BTN = document.getElementById('finalizarCartaoBtn');
 const CANCELAR_CARTAO_BTN = document.getElementById('cancelarCartaoBtn');
+// NOVO SELETOR PARA OS BOTÕES DE TIPO DE CARTÃO
+const cardTypeButtons = document.querySelectorAll('.card-type-btn');
+
 
 const notificationToast = document.getElementById('notificationToast');
 
@@ -638,7 +642,6 @@ exatoBtn.addEventListener('click', ()=>{
     const total = parseFloat(cartTotal.textContent.replace('R$ ','').replace(',','.')) || 0;
     valorRecebidoInput.value = total.toFixed(2).replace('.',',');
     valorRecebidoInput.dispatchEvent(new Event('input'));
-    // Imprimir recibo (dinheiro) antes de confirmar? aqui imprimimos e já finalizamos
     const transacaoDeExemplo = { total, pagamento:'Dinheiro', data: new Date().toLocaleString('pt-BR') };
     printReceipt(transacaoDeExemplo);
     finalizarVendaReal('Dinheiro');
@@ -671,15 +674,23 @@ FINALIZAR_PIX_BTN.addEventListener('click', ()=>{
 });
 CANCELAR_PIX_BTN.addEventListener('click', ()=> hideModal(PIX_MODAL));
 
-/* CARTÃO */
-FINALIZAR_CARTAO_BTN.addEventListener('click', ()=>{
-    const total = parseFloat(CARTAO_VALOR_DISPLAY.textContent.replace('R$ ','').replace(',','.')) || 0;
-    const transacaoDeExemplo = { total, pagamento:'Cartão', data: new Date().toLocaleString('pt-BR') };
-    printReceipt(transacaoDeExemplo);
-    finalizarVendaReal('Cartão');
-    hideModal(CARTAO_MODAL);
+/* CARTÃO: NOVO TRATAMENTO COM BOTÕES DE TIPO */
+cardTypeButtons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        const cardType = e.target.getAttribute('data-type');
+        const fullPaymentType = `Cartão - ${cardType}`;
+        const total = parseFloat(CARTAO_VALOR_DISPLAY.textContent.replace('R$ ','').replace(',','.')) || 0;
+        
+        const transacaoDeExemplo = { total, pagamento: fullPaymentType, data: new Date().toLocaleString('pt-BR') };
+        
+        printReceipt(transacaoDeExemplo);
+        finalizarVendaReal(fullPaymentType); // Passa o tipo detalhado
+        hideModal(CARTAO_MODAL);
+        showNotification(`Venda Cartão (${cardType}) finalizada.`, 'success');
+    });
 });
 CANCELAR_CARTAO_BTN.addEventListener('click', ()=> hideModal(CARTAO_MODAL));
+
 
 /* SAQUE (sangria) */
 saqueButton.addEventListener('click', ()=>{
@@ -705,6 +716,9 @@ function finalizarVendaReal(forceTipo=null) {
     historicoTurno.push(transacao);
     // limpa carrinho
     carrinho = [];
+    // NOVO: Limpa o campo CPF
+    cpfNotaInput.value = '';
+    
     renderizarCarrinho();
     renderizarHistorico();
     atualizarTotalDoDia();
@@ -717,7 +731,7 @@ function finalizarVendaReal(forceTipo=null) {
 /* reimprimir último recibo */
 btnPrintLastReceipt.addEventListener('click', ()=>{
     if (!lastPrintedReceipt) { showNotification('Nenhum recibo disponível para reimpressão.','error'); return; }
-    if (lastPrintedReceipt.pagamento === 'PIX') {
+    if (lastPrintedReceipt.pagamento.includes('PIX')) {
         const payload = generatePixPayload(lastPrintedReceipt.total);
         printReceipt(lastPrintedReceipt, payload);
     } else {
@@ -874,7 +888,7 @@ function printReceipt(transacao, pixPayload = null) {
         reciboCpfSpan.textContent = '';
     }
 
-    if (transacao.pagamento === 'PIX' && pixPayload) {
+    if (transacao.pagamento.includes('PIX') && pixPayload) {
         reciboPixSection.style.display = 'block';
         reciboQrcodeDiv.innerHTML = '';
         // QR reduzido para recibo
