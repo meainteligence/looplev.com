@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Looplev - Caixa (Arquivo único)</title>
+<link rel="shortcut icon" href="./L.png" type="image/x-icon">
+<title>Looplev</title>
 
 <style>
     /* ====== RESET / BASE ====== */
@@ -41,6 +42,11 @@
     .cart-list {flex:1; overflow:auto; margin-bottom:10px; padding-right:6px;}
     .cart-item {display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f0f0f0;}
     .cart-item-remove {background:transparent;border:0;color:#c00;font-size:18px;cursor:pointer}
+    
+    /* NOVO: Esconde itens do carrinho que não são o último (a partir do segundo item) */
+    .hidden-cart-item {
+        display: none !important;
+    }
 
     .payment-buttons {display:flex; gap:6px; margin-top:6px;}
     .payment-button {flex:1;padding:8px;border-radius:8px;border:1px solid var(--orange); background:#fff; cursor:pointer;}
@@ -84,7 +90,7 @@
     #cpfStatus { margin-top: 6px; font-weight: 700; font-size: 0.9rem; }
     .valid { color: #2e7d32; } /* Verde para válido */
     .invalid { color: #c62828; } /* Vermelho para inválido */
-    .minor { color: #FF6600; } /* Laranja para menor de idade */
+    .minor { color: #FF6600; } /* Laranja para menor de idade (REMOVIDO, mas mantendo a classe por precaução) */
 </style>
 </head>
 <body>
@@ -99,6 +105,9 @@
     <div class="container" id="caixaPage">
         <div class="caixa-sidebar">
             <h3 style="margin:0 0 8px 0;">Transação</h3>
+            
+            <div id="cartCountDisplay" style="margin-bottom: 8px;"></div>
+            
             <div id="cartList" class="cart-list"></div>
 
             <div class="cart-summary">
@@ -119,15 +128,9 @@
         </div>
 
         <div class="caixa-main">
-            <div style="display:flex; gap:10px; margin-bottom:6px;">
-                <div style="flex:1;">
-                    <div class="muted" style="font-size:0.9rem;">CPF na nota (opcional)</div>
-                    <input id="cpfNotaInput" class="small-input" placeholder="CPF (apenas números) - opcional" maxlength="14" style="width:100%; margin-top:6px;">
-                </div>
-                <div style="width:140px;">
-                    <div class="muted" style="font-size:0.9rem;">Data Nasc. (opcional)</div>
-                    <input id="dataNascimentoInput" class="small-input" type="date" style="width:100%; margin-top:6px;">
-                </div>
+            <div style="margin-bottom:6px;">
+                <div class="muted" style="font-size:0.9rem;">CPF na nota (opcional)</div>
+                <input id="cpfNotaInput" class="small-input" placeholder="CPF (apenas números) - opcional" maxlength="14" style="width:100%; margin-top:6px;">
             </div>
             
             <div id="cpfStatus" class="muted" style="margin-bottom:10px;">Aguardando CPF...</div>
@@ -324,9 +327,10 @@ const excluirUltimaVendaBtn = document.getElementById('excluirUltimaVendaBtn');
 const imprimirRelatorioDiaBtn = document.getElementById('imprimirRelatorioDiaBtn');
 const btnPrintLastReceipt = document.getElementById('btnPrintLastReceipt');
 const cpfNotaInput = document.getElementById('cpfNotaInput');
-const dataNascimentoInput = document.getElementById('dataNascimentoInput'); // NOVO: Data de Nascimento
-const cpfStatusDiv = document.getElementById('cpfStatus'); // NOVO: Status do CPF
+// REMOVIDO: const dataNascimentoInput = document.getElementById('dataNascimentoInput');
+const cpfStatusDiv = document.getElementById('cpfStatus');
 const totalQuickSpan = document.getElementById('totalQuick');
+const cartCountDisplay = document.getElementById('cartCountDisplay');
 
 /* MODAIS */
 const trocoModal = document.getElementById('trocoModal');
@@ -468,16 +472,33 @@ function stopWorkTimeCounter() {
 function renderizarCarrinho() {
     cartList.innerHTML = '';
     let total = 0;
-    if (!carrinho.length) {
+    const count = carrinho.length;
+
+    if (!count) {
         cartList.innerHTML = '<p style="text-align:center;color:#888;margin:10px 0;">Carrinho vazio</p>';
+        cartCountDisplay.innerHTML = '';
     } else {
         carrinho.forEach((item, idx) => {
-            const div = document.createElement('div'); div.className='cart-item';
-            div.innerHTML = `<div style="display:flex;gap:8px;align-items:center;"><div><strong>Venda</strong></div><div style="color:#666;">R$ ${item.toFixed(2).replace('.',',')}</div></div>
+            const isLast = idx === count - 1;
+            const div = document.createElement('div');
+            // Aplica a classe para esconder se não for o último item e houver mais de um
+            div.className = `cart-item ${!isLast && count > 1 ? 'hidden-cart-item' : ''}`;
+            
+            const itemLabel = count > 1 && !isLast ? 'Item Antigo' : 'Venda';
+
+            div.innerHTML = `<div style="display:flex;gap:8px;align-items:center;"><div><strong>${itemLabel}</strong></div><div style="color:#666;">R$ ${item.toFixed(2).replace('.',',')}</div></div>
                              <div style="display:flex;gap:8px;align-items:center;"><button class="cart-item-remove" data-index="${idx}">×</button></div>`;
             cartList.appendChild(div);
             total += item;
         });
+
+        // Atualiza a contagem de itens
+        if (count > 1) {
+            cartCountDisplay.innerHTML = `<div class="muted">(${count - 1} ${count === 2 ? 'item' : 'itens'} ocultos)</div>`;
+        } else {
+            cartCountDisplay.innerHTML = '';
+        }
+
         Array.from(document.querySelectorAll('.cart-item-remove')).forEach(btn=>{
             btn.addEventListener('click', e=>{
                 const i = parseInt(e.target.getAttribute('data-index'));
@@ -706,7 +727,7 @@ function finalizarVendaReal(forceTipo=null) {
     // limpa carrinho e campos
     carrinho = [];
     cpfNotaInput.value = ''; // Limpa CPF
-    dataNascimentoInput.value = ''; // Limpa Data
+    // REMOVIDO: dataNascimentoInput.value = ''; // Limpa Data
     cpfStatusDiv.textContent = 'Aguardando CPF...'; // Limpa status
     cpfStatusDiv.className = 'muted'; 
     
@@ -903,7 +924,7 @@ function showModal(modal) { modal.style.display='flex'; }
 function hideModal(modal) { modal.style.display='none'; }
 
 /* ===========================
-   NOVA LÓGICA DE VALIDAÇÃO CPF E IDADE
+   LÓGICA DE VALIDAÇÃO CPF
    =========================== */
 
 /* 1. Valida o dígito verificador do CPF */
@@ -930,30 +951,9 @@ function validateCPF(cpf) {
     return true;
 }
 
-/* 2. Verifica se a pessoa é menor de 18 anos */
-function getAgeStatus(dobString) {
-    if (!dobString) return { isMinor: false, message: 'Data de nascimento não informada.' };
-
-    const today = new Date();
-    const dob = new Date(dobString);
-    let age = today.getFullYear() - dob.getFullYear();
-    const m = today.getMonth() - dob.getMonth();
-
-    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-        age--;
-    }
-    
-    if (age < 18) {
-        return { isMinor: true, age, message: `⚠️ MENOR DE IDADE: ${age} anos.` };
-    }
-    
-    return { isMinor: false, age, message: `Maior de idade: ${age} anos.` };
-}
-
-/* 3. Atualiza o display de status */
+/* 2. Atualiza o display de status (APENAS CPF) */
 function updateCpfStatus() {
     const cpfRaw = cpfNotaInput.value.replace(/\D/g,'');
-    const dobString = dataNascimentoInput.value;
     
     if (cpfRaw.length > 0 && cpfRaw.length < 11) {
         cpfStatusDiv.textContent = 'CPF incompleto...';
@@ -965,21 +965,8 @@ function updateCpfStatus() {
         const isCpfValid = validateCPF(cpfRaw);
         
         if (isCpfValid) {
-            let statusText = 'CPF VÁLIDO (Matematicamente)';
-            let statusClass = 'valid';
-            
-            const ageStatus = getAgeStatus(dobString);
-            
-            if (ageStatus.isMinor) {
-                statusText += ` | ${ageStatus.message}`;
-                statusClass = 'minor';
-            } else if (ageStatus.age !== undefined) {
-                 statusText += ` | ${ageStatus.message}`;
-            }
-
-            cpfStatusDiv.textContent = statusText;
-            cpfStatusDiv.className = statusClass;
-
+            cpfStatusDiv.textContent = 'CPF VÁLIDO (Matematicamente)';
+            cpfStatusDiv.className = 'valid';
         } else {
             cpfStatusDiv.textContent = 'CPF INVÁLIDO!';
             cpfStatusDiv.className = 'invalid';
@@ -990,7 +977,7 @@ function updateCpfStatus() {
     }
 }
 
-/* 4. Listeners para formatação e validação */
+/* 3. Listeners para formatação e validação */
 cpfNotaInput.addEventListener('input', (e)=>{
     // Formatação visual do CPF (máscara)
     let v = e.target.value.replace(/\D/g,'').slice(0,11);
@@ -1002,7 +989,7 @@ cpfNotaInput.addEventListener('input', (e)=>{
     updateCpfStatus();
 });
 
-dataNascimentoInput.addEventListener('change', updateCpfStatus);
+// REMOVIDO: dataNascimentoInput.addEventListener('change', updateCpfStatus);
 
 /* LOAD initial */
 window.addEventListener('load', ()=>{
