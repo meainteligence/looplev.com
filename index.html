@@ -18,9 +18,8 @@
     .header-bar button {background:var(--orange-dark); color:#fff; border:none; padding:8px 12px; border-radius:8px; cursor:pointer;}
     .total-do-dia {margin-left:auto; color:#fff; font-weight:700; min-width:120px; text-align:right;}
 
-    /* ====== LAYOUT (RESPONSIVO) ====== */
+    /* ====== LAYOUT ====== */
     .container {display:flex; flex-direction:column; gap:10px; padding:10px; flex:1;}
-    /* Adaptação para tablets (deitado/horizontal) e PCs: coloca elementos lado a lado */
     @media (min-width:768px) { .container {flex-direction:row;} }
 
     .caixa-main, .caixa-sidebar, .history-main {background:#fff; border-radius:12px; padding:14px; box-shadow:0 6px 18px rgba(0,0,0,.08); display:flex; flex-direction:column; }
@@ -30,7 +29,6 @@
     /* ====== QUICK VALUES / INPUTS ====== */
     .quick-values {display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; max-height:28vh; overflow:auto;}
     .quick-value-button {flex:1 1 calc(25% - 8px); min-width:68px; background:#FFCC99; border-radius:8px; border:1px solid #FFCC99; padding:8px; font-weight:700; cursor:pointer; text-align:center;}
-    /* Adaptação para telas pequenas (celulares) */
     @media (max-width:480px) { .quick-value-button{flex:1 1 calc(33.33% - 8px);} }
 
     .input-valor {width:100%; padding:12px; font-size:2rem; text-align:right; border-radius:10px; border:2px solid #ddd; box-sizing:border-box; margin-bottom:8px;}
@@ -81,6 +79,12 @@
     /* helpers */
     .muted {color:#666;font-size:0.9rem;}
     .flex {display:flex; gap:8px;}
+    
+    /* Estilo para o status do CPF */
+    #cpfStatus { margin-top: 6px; font-weight: 700; font-size: 0.9rem; }
+    .valid { color: #2e7d32; } /* Verde para válido */
+    .invalid { color: #c62828; } /* Vermelho para inválido */
+    .minor { color: #FF6600; } /* Laranja para menor de idade */
 </style>
 </head>
 <body>
@@ -89,7 +93,7 @@
     <div class="header-bar">
         <button onclick="showPage('caixa')">Caixa</button>
         <button onclick="showPage('historico')">Histórico</button>
-        <div class="total-do-dia" id="headerTotalDoDiaContainer">Total Turno: <span id="totalDoDia">R$ 0,00</span></div>
+        <div class="total-do-dia">Total Turno: <span id="totalDoDia">R$ 0,00</span></div>
     </div>
 
     <div class="container" id="caixaPage">
@@ -115,17 +119,25 @@
         </div>
 
         <div class="caixa-main">
-            <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
-                <div style="flex:1">
+            <div style="display:flex; gap:10px; margin-bottom:6px;">
+                <div style="flex:1;">
                     <div class="muted" style="font-size:0.9rem;">CPF na nota (opcional)</div>
                     <input id="cpfNotaInput" class="small-input" placeholder="CPF (apenas números) - opcional" maxlength="14" style="width:100%; margin-top:6px;">
                 </div>
-                <div id="quickTotalContainer" style="width:160px;">
+                <div style="width:140px;">
+                    <div class="muted" style="font-size:0.9rem;">Data Nasc. (opcional)</div>
+                    <input id="dataNascimentoInput" class="small-input" type="date" style="width:100%; margin-top:6px;">
+                </div>
+            </div>
+            
+            <div id="cpfStatus" class="muted" style="margin-bottom:10px;">Aguardando CPF...</div>
+            
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
+                <div style="width:160px; margin-left:auto;">
                     <div class="muted" style="font-size:0.9rem;">Total do dia (rápido)</div>
                     <div style="font-weight:700; margin-top:6px;" id="totalQuick">R$ 0,00</div>
                 </div>
             </div>
-
             <div class="quick-values" id="quickValues"></div>
 
             <input id="valorInput" class="input-valor" inputmode="numeric" placeholder="0,00" value="0,00">
@@ -237,14 +249,10 @@
         <h3>Pagamento Cartão</h3>
         <p style="margin:4px 0;">Valor a pagar:</p>
         <div class="valor-display" id="cartaoValorDisplay">R$ 0,00</div>
-        
-        <div style="display:flex; gap:8px; margin-top:12px;">
-            <button class="checkout-button card-type-btn" data-type="Crédito" style="flex:1;">Crédito</button>
-            <button class="checkout-button card-type-btn" data-type="Débito" style="flex:1;">Débito</button>
-            <button class="checkout-button card-type-btn" data-type="Online" style="flex:1; background:#007bff;">Online</button>
+        <div style="margin-top:10px;display:flex;gap:8px;">
+            <button id="finalizarCartaoBtn" class="checkout-button">Pagamento Confirmado</button>
+            <button id="cancelarCartaoBtn" class="checkout-button" style="background:#ccc;color:#222;">Cancelar</button>
         </div>
-
-        <button id="cancelarCartaoBtn" class="checkout-button" style="margin-top:10px; background:#ccc;color:#222;">Cancelar</button>
     </div>
 </div>
 
@@ -316,10 +324,9 @@ const excluirUltimaVendaBtn = document.getElementById('excluirUltimaVendaBtn');
 const imprimirRelatorioDiaBtn = document.getElementById('imprimirRelatorioDiaBtn');
 const btnPrintLastReceipt = document.getElementById('btnPrintLastReceipt');
 const cpfNotaInput = document.getElementById('cpfNotaInput');
+const dataNascimentoInput = document.getElementById('dataNascimentoInput'); // NOVO: Data de Nascimento
+const cpfStatusDiv = document.getElementById('cpfStatus'); // NOVO: Status do CPF
 const totalQuickSpan = document.getElementById('totalQuick');
-
-const headerTotalContainer = document.getElementById('headerTotalDoDiaContainer');
-const quickTotalContainer = document.getElementById('quickTotalContainer');
 
 /* MODAIS */
 const trocoModal = document.getElementById('trocoModal');
@@ -339,10 +346,8 @@ const IMPRIMIR_PIX_BTN = document.getElementById('imprimirPixBtn');
 
 const CARTAO_MODAL = document.getElementById('cartaoModal');
 const CARTAO_VALOR_DISPLAY = document.getElementById('cartaoValorDisplay');
+const FINALIZAR_CARTAO_BTN = document.getElementById('finalizarCartaoBtn');
 const CANCELAR_CARTAO_BTN = document.getElementById('cancelarCartaoBtn');
-// NOVO SELETOR PARA OS BOTÕES DE TIPO DE CARTÃO
-const cardTypeButtons = document.querySelectorAll('.card-type-btn');
-
 
 const notificationToast = document.getElementById('notificationToast');
 
@@ -371,7 +376,7 @@ function showNotification(message, type = 'info') {
     }, 2000); // 2 segundos conforme solicitado
 }
 
-/* STATE persistence (Local Storage) */
+/* STATE persistence */
 function saveState() {
     localStorage.setItem('carrinho', JSON.stringify(carrinho));
     localStorage.setItem('historicoTurno', JSON.stringify(historicoTurno));
@@ -525,19 +530,10 @@ function atualizarTotalDoDia() {
     totalQuickSpan.textContent = `R$ ${totalDia.toFixed(2).replace('.',',')}`;
 }
 
-/* PAGES (função atualizada) */
+/* PAGES */
 function showPage(id) {
     document.getElementById('caixaPage').style.display = (id==='caixa') ? 'flex' : 'none';
     document.getElementById('historicoPage').style.display = (id==='historico') ? 'block' : 'none';
-
-    // Ocultar Total do Turno no cabeçalho e Total Rápido na área principal quando for 'caixa'
-    if (headerTotalContainer) {
-        headerTotalContainer.style.display = (id === 'caixa') ? 'none' : ''; // Esconde no caixa, mostra no histórico
-    }
-    if (quickTotalContainer) {
-        quickTotalContainer.style.display = (id === 'caixa') ? 'none' : 'block'; // Esconde no caixa
-    }
-
     if (id==='historico') {
         renderizarHistorico();
         renderizarSaques();
@@ -642,6 +638,7 @@ exatoBtn.addEventListener('click', ()=>{
     const total = parseFloat(cartTotal.textContent.replace('R$ ','').replace(',','.')) || 0;
     valorRecebidoInput.value = total.toFixed(2).replace('.',',');
     valorRecebidoInput.dispatchEvent(new Event('input'));
+    // Imprimir recibo (dinheiro) antes de confirmar? aqui imprimimos e já finalizamos
     const transacaoDeExemplo = { total, pagamento:'Dinheiro', data: new Date().toLocaleString('pt-BR') };
     printReceipt(transacaoDeExemplo);
     finalizarVendaReal('Dinheiro');
@@ -674,23 +671,15 @@ FINALIZAR_PIX_BTN.addEventListener('click', ()=>{
 });
 CANCELAR_PIX_BTN.addEventListener('click', ()=> hideModal(PIX_MODAL));
 
-/* CARTÃO: NOVO TRATAMENTO COM BOTÕES DE TIPO */
-cardTypeButtons.forEach(btn => {
-    btn.addEventListener('click', (e) => {
-        const cardType = e.target.getAttribute('data-type');
-        const fullPaymentType = `Cartão - ${cardType}`;
-        const total = parseFloat(CARTAO_VALOR_DISPLAY.textContent.replace('R$ ','').replace(',','.')) || 0;
-        
-        const transacaoDeExemplo = { total, pagamento: fullPaymentType, data: new Date().toLocaleString('pt-BR') };
-        
-        printReceipt(transacaoDeExemplo);
-        finalizarVendaReal(fullPaymentType); // Passa o tipo detalhado
-        hideModal(CARTAO_MODAL);
-        showNotification(`Venda Cartão (${cardType}) finalizada.`, 'success');
-    });
+/* CARTÃO */
+FINALIZAR_CARTAO_BTN.addEventListener('click', ()=>{
+    const total = parseFloat(CARTAO_VALOR_DISPLAY.textContent.replace('R$ ','').replace(',','.')) || 0;
+    const transacaoDeExemplo = { total, pagamento:'Cartão', data: new Date().toLocaleString('pt-BR') };
+    printReceipt(transacaoDeExemplo);
+    finalizarVendaReal('Cartão');
+    hideModal(CARTAO_MODAL);
 });
 CANCELAR_CARTAO_BTN.addEventListener('click', ()=> hideModal(CARTAO_MODAL));
-
 
 /* SAQUE (sangria) */
 saqueButton.addEventListener('click', ()=>{
@@ -714,10 +703,12 @@ function finalizarVendaReal(forceTipo=null) {
     const id = historicoTurno.length + 1;
     const transacao = { id, total, pagamento, data };
     historicoTurno.push(transacao);
-    // limpa carrinho
+    // limpa carrinho e campos
     carrinho = [];
-    // NOVO: Limpa o campo CPF
-    cpfNotaInput.value = '';
+    cpfNotaInput.value = ''; // Limpa CPF
+    dataNascimentoInput.value = ''; // Limpa Data
+    cpfStatusDiv.textContent = 'Aguardando CPF...'; // Limpa status
+    cpfStatusDiv.className = 'muted'; 
     
     renderizarCarrinho();
     renderizarHistorico();
@@ -731,7 +722,7 @@ function finalizarVendaReal(forceTipo=null) {
 /* reimprimir último recibo */
 btnPrintLastReceipt.addEventListener('click', ()=>{
     if (!lastPrintedReceipt) { showNotification('Nenhum recibo disponível para reimpressão.','error'); return; }
-    if (lastPrintedReceipt.pagamento.includes('PIX')) {
+    if (lastPrintedReceipt.pagamento === 'PIX') {
         const payload = generatePixPayload(lastPrintedReceipt.total);
         printReceipt(lastPrintedReceipt, payload);
     } else {
@@ -888,7 +879,7 @@ function printReceipt(transacao, pixPayload = null) {
         reciboCpfSpan.textContent = '';
     }
 
-    if (transacao.pagamento.includes('PIX') && pixPayload) {
+    if (transacao.pagamento === 'PIX' && pixPayload) {
         reciboPixSection.style.display = 'block';
         reciboQrcodeDiv.innerHTML = '';
         // QR reduzido para recibo
@@ -911,14 +902,107 @@ function printReceipt(transacao, pixPayload = null) {
 function showModal(modal) { modal.style.display='flex'; }
 function hideModal(modal) { modal.style.display='none'; }
 
-/* UTIL: format CPF field (visual) */
+/* ===========================
+   NOVA LÓGICA DE VALIDAÇÃO CPF E IDADE
+   =========================== */
+
+/* 1. Valida o dígito verificador do CPF */
+function validateCPF(cpf) {
+    cpf = cpf.replace(/[^\d]/g, '');
+    if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+
+    let sum = 0;
+    let remainder;
+    
+    // Calcula o primeiro dígito verificador
+    for (let i = 1; i <= 9; i++) sum += parseInt(cpf.substring(i - 1, i)) * (11 - i);
+    remainder = (sum * 10) % 11;
+    if ((remainder === 10) || (remainder === 11)) remainder = 0;
+    if (remainder !== parseInt(cpf.substring(9, 10))) return false;
+
+    // Calcula o segundo dígito verificador
+    sum = 0;
+    for (let i = 1; i <= 10; i++) sum += parseInt(cpf.substring(i - 1, i)) * (12 - i);
+    remainder = (sum * 10) % 11;
+    if ((remainder === 10) || (remainder === 11)) remainder = 0;
+    if (remainder !== parseInt(cpf.substring(10, 11))) return false;
+
+    return true;
+}
+
+/* 2. Verifica se a pessoa é menor de 18 anos */
+function getAgeStatus(dobString) {
+    if (!dobString) return { isMinor: false, message: 'Data de nascimento não informada.' };
+
+    const today = new Date();
+    const dob = new Date(dobString);
+    let age = today.getFullYear() - dob.getFullYear();
+    const m = today.getMonth() - dob.getMonth();
+
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+        age--;
+    }
+    
+    if (age < 18) {
+        return { isMinor: true, age, message: `⚠️ MENOR DE IDADE: ${age} anos.` };
+    }
+    
+    return { isMinor: false, age, message: `Maior de idade: ${age} anos.` };
+}
+
+/* 3. Atualiza o display de status */
+function updateCpfStatus() {
+    const cpfRaw = cpfNotaInput.value.replace(/\D/g,'');
+    const dobString = dataNascimentoInput.value;
+    
+    if (cpfRaw.length > 0 && cpfRaw.length < 11) {
+        cpfStatusDiv.textContent = 'CPF incompleto...';
+        cpfStatusDiv.className = 'muted';
+        return;
+    }
+
+    if (cpfRaw.length === 11) {
+        const isCpfValid = validateCPF(cpfRaw);
+        
+        if (isCpfValid) {
+            let statusText = 'CPF VÁLIDO (Matematicamente)';
+            let statusClass = 'valid';
+            
+            const ageStatus = getAgeStatus(dobString);
+            
+            if (ageStatus.isMinor) {
+                statusText += ` | ${ageStatus.message}`;
+                statusClass = 'minor';
+            } else if (ageStatus.age !== undefined) {
+                 statusText += ` | ${ageStatus.message}`;
+            }
+
+            cpfStatusDiv.textContent = statusText;
+            cpfStatusDiv.className = statusClass;
+
+        } else {
+            cpfStatusDiv.textContent = 'CPF INVÁLIDO!';
+            cpfStatusDiv.className = 'invalid';
+        }
+    } else {
+        cpfStatusDiv.textContent = 'Aguardando CPF...';
+        cpfStatusDiv.className = 'muted';
+    }
+}
+
+/* 4. Listeners para formatação e validação */
 cpfNotaInput.addEventListener('input', (e)=>{
+    // Formatação visual do CPF (máscara)
     let v = e.target.value.replace(/\D/g,'').slice(0,11);
     if (v.length <= 3) e.target.value = v;
     else if (v.length <= 6) e.target.value = v.replace(/(\d{3})(\d+)/,'$1.$2');
     else if (v.length <= 9) e.target.value = v.replace(/(\d{3})(\d{3})(\d+)/,'$1.$2.$3');
     else e.target.value = v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4');
+    
+    updateCpfStatus();
 });
+
+dataNascimentoInput.addEventListener('change', updateCpfStatus);
 
 /* LOAD initial */
 window.addEventListener('load', ()=>{
@@ -927,9 +1011,6 @@ window.addEventListener('load', ()=>{
     renderizarHistorico();
     renderizarSaques();
     atualizarTotalDoDia();
-    // Garante que o total fique oculto ao carregar, já que 'caixa' é a página inicial
-    if (headerTotalContainer) headerTotalContainer.style.display = 'none';
-    if (quickTotalContainer) quickTotalContainer.style.display = 'none';
 });
 
 /* ocultar modais ao clicar fora do conteúdo */
