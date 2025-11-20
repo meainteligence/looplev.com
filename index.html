@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<link rel="shortcut icon" href="./L.png" type="image/x-icon">
+<title>Looplev</title>
+
+<style>
+    /* ====== RESET / BASE ====== */
+    :root {
+        --orange: #FF6600;
+        --orange-dark: #CC5200;
+        --soft: #fff5e6;
+    }
+    html,body{margin:0;padding:0;font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial; background: var(--orange); color:#222; -webkit-font-smoothing:antialiased;}
+    .app {min-height:100vh; display:flex; flex-direction:column;}
+    .header-bar {display:flex; gap:8px; align-items:center; padding:10px; background:var(--orange); box-shadow:0 2px 8px rgba(0,0,0,.15); position:sticky; top:0; z-index:50;}
+    .header-bar button {background:var(--orange-dark); color:#fff; border:none; padding:8px 12px; border-radius:8px; cursor:pointer;}
+    .total-do-dia {margin-left:auto; color:#fff; font-weight:700; min-width:120px; text-align:right;}
+
+    /* ====== LAYOUT ====== */
+    .container {display:flex; flex-direction:column; gap:10px; padding:10px; flex:1;}
+    @media (min-width:768px) { .container {flex-direction:row;} }
+
+    .caixa-main, .caixa-sidebar, .history-main {background:#fff; border-radius:12px; padding:14px; box-shadow:0 6px 18px rgba(0,0,0,.08); display:flex; flex-direction:column; }
+    .caixa-main {flex:2; min-height:360px;}
+    .caixa-sidebar {flex:1; min-width:260px;}
+
+    /* ====== QUICK VALUES / INPUTS ====== */
+    .quick-values {display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; max-height:28vh; overflow:auto;}
+    .quick-value-button {flex:1 1 calc(25% - 8px); min-width:68px; background:#FFCC99; border-radius:8px; border:1px solid #FFCC99; padding:8px; font-weight:700; cursor:pointer; text-align:center;}
+    @media (max-width:480px) { .quick-value-button{flex:1 1 calc(33.33% - 8px);} }
+
+    .input-valor {width:100%; padding:12px; font-size:2rem; text-align:right; border-radius:10px; border:2px solid #ddd; box-sizing:border-box; margin-bottom:8px;}
+    .small-input {padding:8px;border-radius:8px;border:1px solid #ddd;box-sizing:border-box;}
+
+    .checkout-button {background:var(--orange);color:#fff;border:none;padding:12px;border-radius:10px;font-weight:700;cursor:pointer;margin-top:8px;}
+    .checkout-button.secondary {background:var(--orange-dark);}
+
+    /* ====== CART / SIDEBAR ====== */
+    .cart-list {flex:1; overflow:auto; margin-bottom:10px; padding-right:6px;}
+    .cart-item {display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f0f0f0;}
+    .cart-item-remove {background:transparent;border:0;color:#c00;font-size:18px;cursor:pointer}
+    
+    /* NOVO: Esconde itens do carrinho que não são o último (a partir do segundo item) */
+    .hidden-cart-item {
+        display: none !important;
+    }
+
+    .payment-buttons {display:flex; gap:6px; margin-top:6px;}
+    .payment-button {flex:1;padding:8px;border-radius:8px;border:1px solid var(--orange); background:#fff; cursor:pointer;}
+    .payment-button.active {background:var(--orange); color:#fff;}
+
+    /* ====== HISTORY ====== */
+    .history-actions {display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;}
+    .history-list, .saques-list {max-height:220px; overflow:auto; padding-right:6px;}
+    .history-item {display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f3f3f3;}
+
+    /* ====== MODAIS ====== */
+    .modal-overlay {display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:2000; align-items:center; justify-content:center; padding:10px;}
+    .modal-content {background:#fff; border-radius:12px; padding:20px; width:100%; max-width:420px; box-sizing:border-box; text-align:center;}
+    .modal-content .valor-display {font-size:2rem; font-weight:700; color:var(--orange); display:block; margin-bottom:8px;}
+
+    /* centro QR no modal PIX */
+    #qrcodeDisplay {display:flex; align-items:center; justify-content:center; margin:10px 0;}
+
+    /* ====== TOAST ====== */
+    #notificationToast {position:fixed; left:50%; transform:translateX(-50%); bottom:16px; background:#222; color:#fff; padding:10px 14px; border-radius:8px; z-index:3000; display:none; opacity:0;}
+    #notificationToast.show {display:block; opacity:1; transition:opacity .18s ease;}
+
+    /* ====== RECIBO (visível apenas para print) ====== */
+    #printReceipt {display:none;}
+    #printReport {display:none;}
+
+    /* Impressão para térmica */
+    @media print {
+        body>*:not(#printReceipt):not(#printReport) { display:none !important; }
+        #printReceipt, #printReport { display:block !important; background:#fff; color:#000; width:240px; margin:0; padding:6px; box-sizing:border-box; font-family:monospace; font-size:10px; }
+        #printReceipt h4, #printReport h4 { text-align:center; margin:4px 0; font-size:12px; }
+        #printReceipt p, #printReport p { margin:2px 0; font-size:10px; }
+        #printReceipt .qrcode img { width:90px !important; height:90px !important; display:block; margin:6px auto; }
+    }
+
+    /* helpers */
+    .muted {color:#666;font-size:0.9rem;}
+    .flex {display:flex; gap:8px;}
+    
+    /* Estilo para o status do CPF */
+    #cpfStatus { margin-top: 6px; font-weight: 700; font-size: 0.9rem; }
+    .valid { color: #2e7d32; } /* Verde para válido */
+    .invalid { color: #c62828; } /* Vermelho para inválido */
+    .minor { color: #FF6600; } /* Laranja para menor de idade (REMOVIDO, mas mantendo a classe por precaução) */
+</style>
+</head>
+<body>
+<div class="app">
+
+    <div class="header-bar">
+        <button onclick="showPage('caixa')">Caixa</button>
+        <button onclick="showPage('historico')">Histórico</button>
+        <div class="total-do-dia">Total Turno: <span id="totalDoDia">R$ 0,00</span></div>
+    </div>
+
+    <div class="container" id="caixaPage">
+        <div class="caixa-sidebar">
+            <h3 style="margin:0 0 8px 0;">Transação</h3>
+            
+            <div id="cartCountDisplay" style="margin-bottom: 8px;"></div>
+            
+            <div id="cartList" class="cart-list"></div>
+
+            <div class="cart-summary">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div><strong>Total:</strong></div>
+                    <div id="cartTotal" style="font-weight:700">R$ 0,00</div>
+                </div>
+
+                <div class="payment-buttons" style="margin-top:10px;">
+                    <button class="payment-button active" data-type="Dinheiro">Dinheiro</button>
+                    <button class="payment-button" data-type="Cartão">Cartão</button>
+                    <button class="payment-button" data-type="PIX">PIX</button>
+                </div>
+
+                <button id="finalizarButton" class="checkout-button">Finalizar Venda</button>
+                <button id="btnPrintLastReceipt" class="checkout-button secondary" style="margin-top:8px;display:none;">Reimprimir último recibo</button>
+            </div>
+        </div>
+
+        <div class="caixa-main">
+            <div style="margin-bottom:6px;">
+                <div class="muted" style="font-size:0.9rem;">CPF na nota (opcional)</div>
+                <input id="cpfNotaInput" class="small-input" placeholder="CPF (apenas números) - opcional" maxlength="14" style="width:100%; margin-top:6px;">
+            </div>
+            
+            <div id="cpfStatus" class="muted" style="margin-bottom:10px;">Aguardando CPF...</div>
+            
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
+                <div style="width:160px; margin-left:auto;">
+                    <div class="muted" style="font-size:0.9rem;">Total do dia (rápido)</div>
+                    <div style="font-weight:700; margin-top:6px;" id="totalQuick">R$ 0,00</div>
+                </div>
+            </div>
+            <div class="quick-values" id="quickValues"></div>
+
+            <input id="valorInput" class="input-valor" inputmode="numeric" placeholder="0,00" value="0,00">
+
+            <div style="display:flex; gap:8px;">
+                <button id="adicionarButton" class="checkout-button" style="flex:1">Adicionar</button>
+                <button id="limparCarrinhoBtn" class="checkout-button secondary" style="width:120px;">Limpar</button>
+            </div>
+
+            <hr style="margin:12px 0; border:none; border-top:1px solid #f0f0f0;">
+
+            <h3 style="margin:6px 0;">Retirada de Caixa (Sangria)</h3>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <input id="saqueInput" class="small-input" placeholder="0,00" style="flex:1" value="0,00" inputmode="numeric">
+                <button id="saqueButton" class="checkout-button secondary" style="white-space:nowrap;">Registrar Saque</button>
+            </div>
+            <div style="margin-top:10px;"><small class="muted">Sangrias registradas aparecerão no histórico e reduzirão o total do dia.</small></div>
+        </div>
+    </div>
+
+    <div id="historicoPage" style="display:none; padding:10px;">
+        <div class="history-main">
+            <div class="history-actions">
+                <button id="iniciarTurnoBtn" class="checkout-button">Iniciar Turno</button>
+                <button id="finalizarTurnoBtn" class="checkout-button secondary">Finalizar Turno</button>
+                <button id="excluirUltimaVendaBtn" style="background:#dc3545;color:#fff;border:0;padding:8px;border-radius:8px;">Excluir Última Venda</button>
+            </div>
+
+            <div class="history-actions" style="margin-top:8px;">
+                <button id="filterOntemBtn" class="small-input" style="padding:8px;">Mostrar Último Turno (Anterior)</button>
+                <button id="baixarHistoricoBtn" class="checkout-button">Baixar (Atual)</button>
+                <button id="baixarHistoricoOntemBtn" class="checkout-button secondary">Baixar (Anterior)</button>
+                <button id="imprimirRelatorioDiaBtn" class="checkout-button" title="Imprimir relatório do turno atual">Imprimir relatório do dia</button>
+            </div>
+
+            <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
+                <div>Turno iniciado: <span id="turnoStartTime">N/A</span></div>
+                <div style="margin-left:auto;">Tempo: <span id="workTime">00:00:00</span></div>
+            </div>
+
+            <hr style="margin:10px 0; border:none; border-top:1px solid #f0f0f0;">
+
+            <h4 style="margin:6px 0;">Histórico de Vendas</h4>
+            <div id="historyList" class="history-list"></div>
+            <div style="display:flex; gap:8px; margin-top:8px;">
+                <div class="muted">Total Vendas:</div>
+                <div id="totalHistorico" style="font-weight:700">R$ 0,00</div>
+            </div>
+
+            <hr style="margin:10px 0; border:none; border-top:1px solid #f0f0f0;">
+
+            <h4 style="margin:6px 0;">Histórico de Saques</h4>
+            <div id="saquesList" class="saques-list"></div>
+            <div style="display:flex; gap:8px; margin-top:8px;">
+                <div class="muted">Total Saques:</div>
+                <div id="totalSaques" style="font-weight:700">R$ 0,00</div>
+            </div>
+
+            <div id="historicoCompleto" style="margin-top:12px; display:none;">
+                <h4>Todos os Turnos Finalizados</h4>
+                <div id="historicoCompletoList"></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div id="notificationToast"></div>
+
+<div id="trocoModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>Calcular Troco</h3>
+        <p>Total da venda: <span class="valor-display" id="modalTotal">R$ 0,00</span></p>
+        <p style="margin-top:6px;">Valor recebido:</p>
+        <input id="valorRecebidoInput" class="small-input" inputmode="numeric" placeholder="0,00" />
+        <div style="display:flex; gap:8px; margin-top:10px;">
+            <button id="exatoBtn" class="checkout-button">Exato</button>
+            <button id="finalizarTrocoBtn" class="checkout-button secondary">Finalizar</button>
+        </div>
+        <p style="margin-top:12px;">Troco:</p>
+        <div class="valor-display" id="modalTroco">R$ 0,00</div>
+        <button id="cancelarTrocoBtn" class="checkout-button" style="margin-top:10px; background:#ccc;color:#222;">Cancelar</button>
+    </div>
+</div>
+
+<div id="pixModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>Pagamento PIX</h3>
+        <p style="margin:4px 0;">Valor a pagar:</p>
+        <div class="valor-display" id="pixValorDisplay">R$ 0,00</div>
+
+        <div id="qrcodeDisplay"></div>
+
+        <div style="margin-top:6px;">
+            <div class="muted">Chave PIX (CNPJ):</div>
+            <div style="font-weight:700; color:var(--orange); margin-top:6px;">09.127.957/0001-78</div>
+        </div>
+
+        <div style="margin-top:10px; display:flex; gap:8px;">
+            <button id="imprimirPixBtn" class="checkout-button">Imprimir Recibo</button>
+            <button id="finalizarPixBtn" class="checkout-button secondary">Confirmar Pagamento</button>
+        </div>
+        <button id="cancelarPixBtn" class="checkout-button" style="margin-top:8px; background:#ccc;color:#222;">Cancelar</button>
+    </div>
+</div>
+
+<div id="cartaoModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>Pagamento Cartão</h3>
+        <p style="margin:4px 0;">Valor a pagar:</p>
+        <div class="valor-display" id="cartaoValorDisplay">R$ 0,00</div>
+        <div style="margin-top:10px;display:flex;gap:8px;">
+            <button id="finalizarCartaoBtn" class="checkout-button">Pagamento Confirmado</button>
+            <button id="cancelarCartaoBtn" class="checkout-button" style="background:#ccc;color:#222;">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<div id="printReceipt">
+    <h4>LOOPLEV CAIXA</h4>
+    <p style="text-align:center; margin:4px 0;">Recibo de Transação</p>
+    <p>Data: <span id="reciboData"></span></p>
+    <p>Tipo: <span id="reciboTipo"></span></p>
+    <p>Total: <strong id="reciboTotal"></strong></p>
+    <div id="reciboCpf" style="display:none;"><p>CPF: <span id="reciboCpfSpan"></span></p></div>
+    <div id="reciboPixSection" style="display:none; text-align:center; margin-top:6px;">
+        <div class="qrcode" id="reciboQrcode"></div>
+        <p style="font-size:11px; margin:4px 0;">Chave: 09.127.957/0001-78</p>
+        <p style="font-size:10px; margin:0 0 4px 0;">RAIZ CULTURAL LTDA</p>
+    </div>
+    <p style="text-align:center; margin-top:8px;">Obrigado e volte sempre!</p>
+</div>
+
+<div id="printReport">
+    </div>
+
+<script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+
+<script>
+/* ===========================
+   VARIÁVEIS E ESTADO
+   =========================== */
+let carrinho = [];
+let historicoTurno = [];
+let saquesTurno = [];
+let historicoCompleto = [];
+let tipoPagamento = 'Dinheiro';
+let turnoStartTime = null;
+let workTimeInterval = null;
+let historicoVisivel = false;
+let filtroOntemAtivo = false;
+let lastPrintedReceipt = null;
+
+const PIX_KEY = '09127957000178';
+const PIX_NAME = 'RAIZ CULTURAL LTDA';
+const PIX_CITY = 'CAXIAS DO SUL';
+
+/* SELECTORS */
+const quickValuesContainer = document.getElementById('quickValues');
+const valorInput = document.getElementById('valorInput');
+const adicionarButton = document.getElementById('adicionarButton');
+const cartList = document.getElementById('cartList');
+const cartTotal = document.getElementById('cartTotal');
+const finalizarButton = document.getElementById('finalizarButton');
+const paymentButtons = document.querySelectorAll('.payment-button');
+const saqueInput = document.getElementById('saqueInput');
+const saqueButton = document.getElementById('saqueButton');
+const historyList = document.getElementById('historyList');
+const saquesList = document.getElementById('saquesList');
+const totalSaquesSpan = document.getElementById('totalSaques');
+const totalHistoricoSpan = document.getElementById('totalHistorico');
+const totalDoDiaSpan = document.getElementById('totalDoDia');
+const iniciarTurnoBtn = document.getElementById('iniciarTurnoBtn');
+const finalizarTurnoBtn = document.getElementById('finalizarTurnoBtn');
+const turnoStartTimeSpan = document.getElementById('turnoStartTime');
+const workTimeSpan = document.getElementById('workTime');
+const baixarHistoricoBtn = document.getElementById('baixarHistoricoBtn');
+const baixarHistoricoOntemBtn = document.getElementById('baixarHistoricoOntemBtn');
+const verHistoricoCompletoBtn = document.getElementById('verHistoricoCompletoBtn');
+const historicoCompletoDiv = document.getElementById('historicoCompleto');
+const historicoCompletoList = document.getElementById('historicoCompletoList');
+const filterOntemBtn = document.getElementById('filterOntemBtn');
+const excluirUltimaVendaBtn = document.getElementById('excluirUltimaVendaBtn');
+const imprimirRelatorioDiaBtn = document.getElementById('imprimirRelatorioDiaBtn');
+const btnPrintLastReceipt = document.getElementById('btnPrintLastReceipt');
+const cpfNotaInput = document.getElementById('cpfNotaInput');
+// REMOVIDO: const dataNascimentoInput = document.getElementById('dataNascimentoInput');
+const cpfStatusDiv = document.getElementById('cpfStatus');
+const totalQuickSpan = document.getElementById('totalQuick');
+const cartCountDisplay = document.getElementById('cartCountDisplay');
+
+/* MODAIS */
+const trocoModal = document.getElementById('trocoModal');
+const modalTotalSpan = document.getElementById('modalTotal');
+const valorRecebidoInput = document.getElementById('valorRecebidoInput');
+const modalTrocoSpan = document.getElementById('modalTroco');
+const exatoBtn = document.getElementById('exatoBtn');
+const finalizarTrocoBtn = document.getElementById('finalizarTrocoBtn');
+const cancelarTrocoBtn = document.getElementById('cancelarTrocoBtn');
+
+const PIX_MODAL = document.getElementById('pixModal');
+const PIX_VALOR_DISPLAY = document.getElementById('pixValorDisplay');
+const QRCODE_DISPLAY = document.getElementById('qrcodeDisplay');
+const FINALIZAR_PIX_BTN = document.getElementById('finalizarPixBtn');
+const CANCELAR_PIX_BTN = document.getElementById('cancelarPixBtn');
+const IMPRIMIR_PIX_BTN = document.getElementById('imprimirPixBtn');
+
+const CARTAO_MODAL = document.getElementById('cartaoModal');
+const CARTAO_VALOR_DISPLAY = document.getElementById('cartaoValorDisplay');
+const FINALIZAR_CARTAO_BTN = document.getElementById('finalizarCartaoBtn');
+const CANCELAR_CARTAO_BTN = document.getElementById('cancelarCartaoBtn');
+
+const notificationToast = document.getElementById('notificationToast');
+
+const printReceiptDiv = document.getElementById('printReceipt');
+const reciboDataSpan = document.getElementById('reciboData');
+const reciboTipoSpan = document.getElementById('reciboTipo');
+const reciboTotalSpan = document.getElementById('reciboTotal');
+const reciboPixSection = document.getElementById('reciboPixSection');
+const reciboQrcodeDiv = document.getElementById('reciboQrcode');
+const reciboCpfDiv = document.getElementById('reciboCpf');
+const reciboCpfSpan = document.getElementById('reciboCpfSpan');
+
+const printReportDiv = document.getElementById('printReport');
+
+/* TOAST helper (2 segundos) */
+function showNotification(message, type = 'info') {
+    notificationToast.textContent = message;
+    notificationToast.className = 'show';
+    notificationToast.style.background = (type === 'error') ? '#c62828' : (type === 'success') ? '#2e7d32' : '#222';
+    notificationToast.style.color = '#fff';
+    notificationToast.style.display = 'block';
+    notificationToast.style.opacity = '1';
+    setTimeout(() => {
+        notificationToast.style.opacity = '0';
+        setTimeout(()=> notificationToast.style.display = 'none', 180);
+    }, 2000); // 2 segundos conforme solicitado
+}
+
+/* STATE persistence */
+function saveState() {
+    localStorage.setItem('carrinho', JSON.stringify(carrinho));
+    localStorage.setItem('historicoTurno', JSON.stringify(historicoTurno));
+    localStorage.setItem('saquesTurno', JSON.stringify(saquesTurno));
+    localStorage.setItem('historicoCompleto', JSON.stringify(historicoCompleto));
+    localStorage.setItem('turnoStartTime', turnoStartTime);
+}
+function loadState() {
+    const sCarrinho = localStorage.getItem('carrinho');
+    const sHistorico = localStorage.getItem('historicoTurno');
+    const sSaques = localStorage.getItem('saquesTurno');
+    const sHistoricoCompleto = localStorage.getItem('historicoCompleto');
+    const sTurnoStart = localStorage.getItem('turnoStartTime');
+
+    if (sCarrinho) carrinho = JSON.parse(sCarrinho);
+    if (sHistorico) historicoTurno = JSON.parse(sHistorico);
+    if (sSaques) saquesTurno = JSON.parse(sSaques);
+    if (sHistoricoCompleto) historicoCompleto = JSON.parse(sHistoricoCompleto);
+    if (sTurnoStart && sTurnoStart !== 'null') {
+        turnoStartTime = parseInt(sTurnoStart);
+        startWorkTimeCounter();
+    }
+}
+
+/* UTIL PIX payload (CRC16) */
+function crc16CCITT(payload) {
+    const polynomial = 0x1021;
+    let crc = 0xFFFF;
+    const bytes = payload.split('').map(c => c.charCodeAt(0) & 0xFF);
+    for (let b of bytes) {
+        crc ^= (b << 8);
+        for (let i=0;i<8;i++) {
+            if (crc & 0x8000) crc = ((crc << 1) ^ polynomial) & 0xFFFF;
+            else crc = (crc << 1) & 0xFFFF;
+        }
+    }
+    return crc.toString(16).toUpperCase().padStart(4,'0');
+}
+function generatePixPayload(valor) {
+    const normalize = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+    const name = normalize(PIX_NAME).substring(0,25);
+    const city = normalize(PIX_CITY).substring(0,15);
+    const value = valor.toFixed(2);
+    const txid = '***';
+    const tlv = (id, valueStr) => {
+        const len = valueStr.length.toString().padStart(2,'0');
+        return `${id.toString().padStart(2,'0')}${len}${valueStr}`;
+    };
+    let payload = '';
+    payload += tlv(0,'01'); // version
+    payload += tlv(1,'12'); // merchant account info id
+    const mai = tlv(0,'BR.GOV.BCB.PIX') + tlv(1,PIX_KEY) + tlv(2,txid);
+    payload += tlv(26, mai);
+    payload += tlv(52,'0000');
+    payload += tlv(53,'986');
+    payload += tlv(54,value);
+    payload += tlv(58,'BR');
+    payload += tlv(59,name);
+    payload += tlv(60,city);
+    payload += tlv(62, tlv(5,txid));
+    const payloadCRC = payload + '6304';
+    const crc = crc16CCITT(payloadCRC);
+    return payloadCRC + crc;
+}
+
+/* WORK TIME (contador) */
+function updateWorkTime() {
+    if (!turnoStartTime) return;
+    const now = Date.now();
+    const diff = Math.floor((now - turnoStartTime)/1000);
+    const h = Math.floor(diff/3600), m = Math.floor((diff%3600)/60), s = diff%60;
+    const pad = n => String(n).padStart(2,'0');
+    workTimeSpan.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+function startWorkTimeCounter() {
+    clearInterval(workTimeInterval);
+    if (turnoStartTime) {
+        turnoStartTimeSpan.textContent = new Date(turnoStartTime).toLocaleString('pt-BR');
+        workTimeInterval = setInterval(updateWorkTime, 1000);
+    }
+}
+function stopWorkTimeCounter() {
+    clearInterval(workTimeInterval);
+    workTimeSpan.textContent = '00:00:00';
+    turnoStartTimeSpan.textContent = 'N/A';
+}
+
+/* RENDER / UI */
+function renderizarCarrinho() {
+    cartList.innerHTML = '';
+    let total = 0;
+    const count = carrinho.length;
+
+    if (!count) {
+        cartList.innerHTML = '<p style="text-align:center;color:#888;margin:10px 0;">Carrinho vazio</p>';
+        cartCountDisplay.innerHTML = '';
+    } else {
+        carrinho.forEach((item, idx) => {
+            const isLast = idx === count - 1;
+            const div = document.createElement('div');
+            // Aplica a classe para esconder se não for o último item e houver mais de um
+            div.className = `cart-item ${!isLast && count > 1 ? 'hidden-cart-item' : ''}`;
+            
+            const itemLabel = count > 1 && !isLast ? 'Item Antigo' : 'Venda';
+
+            div.innerHTML = `<div style="display:flex;gap:8px;align-items:center;"><div><strong>${itemLabel}</strong></div><div style="color:#666;">R$ ${item.toFixed(2).replace('.',',')}</div></div>
+                             <div style="display:flex;gap:8px;align-items:center;"><button class="cart-item-remove" data-index="${idx}">×</button></div>`;
+            cartList.appendChild(div);
+            total += item;
+        });
+
+        // Atualiza a contagem de itens
+        if (count > 1) {
+            cartCountDisplay.innerHTML = `<div class="muted">(${count - 1} ${count === 2 ? 'item' : 'itens'} ocultos)</div>`;
+        } else {
+            cartCountDisplay.innerHTML = '';
+        }
+
+        Array.from(document.querySelectorAll('.cart-item-remove')).forEach(btn=>{
+            btn.addEventListener('click', e=>{
+                const i = parseInt(e.target.getAttribute('data-index'));
+                carrinho.splice(i,1);
+                renderizarCarrinho();
+                saveState();
+                atualizarTotalDoDia();
+            });
+        });
+    }
+    cartTotal.textContent = `R$ ${total.toFixed(2).replace('.',',')}`;
+    totalQuickSpan.textContent = cartTotal.textContent;
+}
+
+function renderizarHistorico() {
+    historyList.innerHTML = '';
+    let total = 0;
+    let dados = historicoTurno;
+    if (filtroOntemAtivo && historicoCompleto.length>0) {
+        dados = historicoCompleto[0].vendas;
+    }
+    const invert = [...dados].reverse();
+    invert.forEach(t => {
+        const div = document.createElement('div'); div.className='history-item';
+        div.innerHTML = `<div><strong>#${t.id||'N/A'}</strong> <div style="font-size:0.9rem;color:#666;">${t.data}</div></div>
+                         <div style="text-align:right;"><div style="font-weight:700">R$ ${t.total.toFixed(2).replace('.',',')}</div><div style="font-size:0.85rem;color:#666;">${t.pagamento}</div></div>`;
+        historyList.appendChild(div);
+        total += t.total;
+    });
+    totalHistoricoSpan.textContent = `R$ ${total.toFixed(2).replace('.',',')}`;
+}
+
+function renderizarSaques() {
+    saquesList.innerHTML = '';
+    let total = 0;
+    saquesTurno.slice().reverse().forEach(s => {
+        const d = document.createElement('div'); d.className='saque-item';
+        d.innerHTML = `<div style="display:flex;justify-content:space-between;"><div>${s.data}</div><div style="color:#c62828;font-weight:700;">- R$ ${s.valor.toFixed(2).replace('.',',')}</div></div>`;
+        saquesList.appendChild(d);
+        total += s.valor;
+    });
+    totalSaquesSpan.textContent = `R$ ${total.toFixed(2).replace('.',',')}`;
+}
+
+function atualizarTotalDoDia() {
+    const totalVendas = historicoTurno.reduce((s,t)=>s+t.total,0);
+    const totalSaques = saquesTurno.reduce((s,t)=>s+t.valor,0);
+    const totalDia = totalVendas - totalSaques;
+    totalDoDiaSpan.textContent = `R$ ${totalDia.toFixed(2).replace('.',',')}`;
+    totalQuickSpan.textContent = `R$ ${totalDia.toFixed(2).replace('.',',')}`;
+}
+
+/* PAGES */
+function showPage(id) {
+    document.getElementById('caixaPage').style.display = (id==='caixa') ? 'flex' : 'none';
+    document.getElementById('historicoPage').style.display = (id==='historico') ? 'block' : 'none';
+    if (id==='historico') {
+        renderizarHistorico();
+        renderizarSaques();
+    } else {
+        renderizarCarrinho();
+    }
+}
+
+/* ===========================
+   AÇÕES: QuickValues / Add / Payment
+   =========================== */
+const quickValues = [1.50,2,5,10,20,30,40,50,60,70,80,100];
+quickValues.forEach(v=>{
+    const b = document.createElement('button'); b.className='quick-value-button';
+    b.textContent = `R$ ${v.toFixed(2).replace('.',',')}`;
+    b.addEventListener('click', ()=>{
+        if (!turnoStartTime) { showNotification('Por favor, inicie um turno antes de adicionar vendas.','error'); return; }
+        carrinho.push(v); renderizarCarrinho(); saveState(); atualizarTotalDoDia();
+        valorInput.value = '0,00';
+    });
+    quickValuesContainer.appendChild(b);
+});
+
+valorInput.addEventListener('input', (e)=>{
+    let v = e.target.value.replace(/\D/g,'');
+    v = (v/100).toFixed(2);
+    e.target.value = v.replace('.',',');
+});
+saqueInput.addEventListener('input', (e)=>{
+    let v = e.target.value.replace(/\D/g,'');
+    v = (v/100).toFixed(2);
+    e.target.value = v.replace('.',',');
+});
+
+adicionarButton.addEventListener('click', ()=>{
+    if (!turnoStartTime) { showNotification('Por favor, inicie um turno antes de adicionar vendas.','error'); return; }
+    let valor = parseFloat(valorInput.value.replace(',','.')) || 0;
+    if (valor <= 0) { showNotification('Por favor, insira um valor válido.','error'); return; }
+    carrinho.push(valor);
+    renderizarCarrinho();
+    valorInput.value = '0,00';
+    saveState();
+    showNotification('Item adicionado ao carrinho','success');
+    atualizarTotalDoDia();
+});
+
+document.getElementById('limparCarrinhoBtn').addEventListener('click', ()=>{
+    if (carrinho.length===0) { showNotification('Carrinho já está vazio.','info'); return; }
+    if (!confirm('Limpar o carrinho atual?')) return;
+    carrinho = [];
+    renderizarCarrinho();
+    saveState();
+    showNotification('Carrinho limpo.','success');
+    atualizarTotalDoDia();
+});
+
+/* payment type selection */
+paymentButtons.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+        paymentButtons.forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        tipoPagamento = btn.dataset.type;
+    });
+});
+
+/* FINALIZAR VENDA (abre modais conforme tipo) */
+finalizarButton.addEventListener('click', ()=>{
+    if (!turnoStartTime) { showNotification('Por favor, inicie um turno antes de finalizar vendas.','error'); return; }
+    if (carrinho.length===0) { showNotification('O carrinho está vazio.','error'); return; }
+    const total = carrinho.reduce((s,i)=>s+i,0);
+
+    if (tipoPagamento === 'Dinheiro') {
+        modalTotalSpan.textContent = `R$ ${total.toFixed(2).replace('.',',')}`;
+        valorRecebidoInput.value = total.toFixed(2).replace('.',',');
+        modalTrocoSpan.textContent = `R$ 0,00`;
+        showModal(trocoModal);
+        setTimeout(()=> valorRecebidoInput.focus(), 60);
+    } else if (tipoPagamento === 'PIX') {
+        PIX_VALOR_DISPLAY.textContent = `R$ ${total.toFixed(2).replace('.',',')}`;
+        QRCODE_DISPLAY.innerHTML = '';
+        const payload = generatePixPayload(total);
+        new QRCode(QRCODE_DISPLAY, { text: payload, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.H });
+        showModal(PIX_MODAL);
+    } else if (tipoPagamento === 'Cartão') {
+        CARTAO_VALOR_DISPLAY.textContent = `R$ ${total.toFixed(2).replace('.',',')}`;
+        showModal(CARTAO_MODAL);
+    }
+});
+
+/* Troco modal logic */
+valorRecebidoInput.addEventListener('input', (e)=>{
+    let v = e.target.value.replace(/\D/g,'');
+    v = (v/100).toFixed(2);
+    e.target.value = v.replace('.',',');
+    const valorRecebido = parseFloat(v) || 0;
+    const total = parseFloat(cartTotal.textContent.replace('R$ ','').replace(',','.')) || 0;
+    const troco = valorRecebido - total;
+    modalTrocoSpan.textContent = `R$ ${troco.toFixed(2).replace('.',',')}`;
+});
+
+exatoBtn.addEventListener('click', ()=>{
+    const total = parseFloat(cartTotal.textContent.replace('R$ ','').replace(',','.')) || 0;
+    valorRecebidoInput.value = total.toFixed(2).replace('.',',');
+    valorRecebidoInput.dispatchEvent(new Event('input'));
+    // Imprimir recibo (dinheiro) antes de confirmar? aqui imprimimos e já finalizamos
+    const transacaoDeExemplo = { total, pagamento:'Dinheiro', data: new Date().toLocaleString('pt-BR') };
+    printReceipt(transacaoDeExemplo);
+    finalizarVendaReal('Dinheiro');
+    hideModal(trocoModal);
+});
+finalizarTrocoBtn.addEventListener('click', ()=>{
+    const valorRecebido = parseFloat(valorRecebidoInput.value.replace(',','.')) || 0;
+    const total = parseFloat(cartTotal.textContent.replace('R$ ','').replace(',','.')) || 0;
+    if (valorRecebido < total) { showNotification('Valor recebido menor que total.','error'); return; }
+    const transacaoDeExemplo = { total, pagamento:'Dinheiro', data: new Date().toLocaleString('pt-BR') };
+    printReceipt(transacaoDeExemplo);
+    finalizarVendaReal('Dinheiro');
+    hideModal(trocoModal);
+});
+cancelarTrocoBtn.addEventListener('click', ()=> hideModal(trocoModal));
+
+/* PIX modal: imprimir primeiro (com QR), depois confirmar */
+IMPRIMIR_PIX_BTN.addEventListener('click', ()=>{
+    const total = parseFloat(PIX_VALOR_DISPLAY.textContent.replace('R$ ','').replace(',','.')) || 0;
+    const payload = generatePixPayload(total);
+    // Preenche recibo com QR e imprime
+    const transacaoDeExemplo = { total, pagamento:'PIX', data: new Date().toLocaleString('pt-BR') };
+    printReceipt(transacaoDeExemplo, payload);
+    showNotification('Recibo impresso. Após confirmar o pagamento, confirme para finalizar a venda.', 'info');
+});
+FINALIZAR_PIX_BTN.addEventListener('click', ()=>{
+    // Ao confirmar, finaliza de fato
+    finalizarVendaReal('PIX');
+    hideModal(PIX_MODAL);
+});
+CANCELAR_PIX_BTN.addEventListener('click', ()=> hideModal(PIX_MODAL));
+
+/* CARTÃO */
+FINALIZAR_CARTAO_BTN.addEventListener('click', ()=>{
+    const total = parseFloat(CARTAO_VALOR_DISPLAY.textContent.replace('R$ ','').replace(',','.')) || 0;
+    const transacaoDeExemplo = { total, pagamento:'Cartão', data: new Date().toLocaleString('pt-BR') };
+    printReceipt(transacaoDeExemplo);
+    finalizarVendaReal('Cartão');
+    hideModal(CARTAO_MODAL);
+});
+CANCELAR_CARTAO_BTN.addEventListener('click', ()=> hideModal(CARTAO_MODAL));
+
+/* SAQUE (sangria) */
+saqueButton.addEventListener('click', ()=>{
+    if (!turnoStartTime) { showNotification('Por favor, inicie um turno antes de registrar um saque.','error'); return; }
+    let valor = parseFloat(saqueInput.value.replace(',','.')) || 0;
+    if (valor <= 0) { showNotification('Insira um valor de saque válido.','error'); return; }
+    const data = new Date().toLocaleString('pt-BR');
+    saquesTurno.push({ valor, data });
+    saqueInput.value = '0,00';
+    renderizarSaques();
+    saveState();
+    showNotification(`Saque de R$ ${valor.toFixed(2).replace('.',',')} registrado.`,'success');
+    atualizarTotalDoDia();
+});
+
+/* FINALIZAÇÃO REAL: registra transação no histórico */
+function finalizarVendaReal(forceTipo=null) {
+    const total = carrinho.reduce((s,i)=>s+i,0);
+    const pagamento = forceTipo || tipoPagamento;
+    const data = new Date().toLocaleString('pt-BR');
+    const id = historicoTurno.length + 1;
+    const transacao = { id, total, pagamento, data };
+    historicoTurno.push(transacao);
+    // limpa carrinho e campos
+    carrinho = [];
+    cpfNotaInput.value = ''; // Limpa CPF
+    // REMOVIDO: dataNascimentoInput.value = ''; // Limpa Data
+    cpfStatusDiv.textContent = 'Aguardando CPF...'; // Limpa status
+    cpfStatusDiv.className = 'muted'; 
+    
+    renderizarCarrinho();
+    renderizarHistorico();
+    atualizarTotalDoDia();
+    saveState();
+    showNotification(`Venda finalizada: R$ ${total.toFixed(2).replace('.',',')} (${pagamento})`,'success');
+    lastPrintedReceipt = transacao;
+    btnPrintLastReceipt.style.display = 'inline-block';
+}
+
+/* reimprimir último recibo */
+btnPrintLastReceipt.addEventListener('click', ()=>{
+    if (!lastPrintedReceipt) { showNotification('Nenhum recibo disponível para reimpressão.','error'); return; }
+    if (lastPrintedReceipt.pagamento === 'PIX') {
+        const payload = generatePixPayload(lastPrintedReceipt.total);
+        printReceipt(lastPrintedReceipt, payload);
+    } else {
+        printReceipt(lastPrintedReceipt);
+    }
+});
+
+/* excluir última venda */
+excluirUltimaVendaBtn.addEventListener('click', ()=>{
+    if (!turnoStartTime) { showNotification('Nenhum turno em andamento.','error'); return; }
+    if (historicoTurno.length===0) { showNotification('Não há vendas para excluir no histórico atual.','error'); return; }
+    const ultima = historicoTurno[historicoTurno.length-1];
+    if (!confirm(`Excluir a última venda (R$ ${ultima.total.toFixed(2).replace('.',',')})?`)) return;
+    historicoTurno.pop();
+    renderizarHistorico();
+    saveState();
+    atualizarTotalDoDia();
+    showNotification('Última venda excluída.','success');
+});
+
+/* INICIAR / FINALIZAR TURNO */
+iniciarTurnoBtn.addEventListener('click', ()=>{
+    if (turnoStartTime) { showNotification('Já existe um turno em andamento.','error'); return; }
+    historicoTurno = [];
+    saquesTurno = [];
+    turnoStartTime = Date.now();
+    saveState();
+    startWorkTimeCounter();
+    showNotification('Novo turno iniciado!','success');
+    renderizarHistorico();
+    renderizarSaques();
+    atualizarTotalDoDia();
+});
+finalizarTurnoBtn.addEventListener('click', ()=>{
+    if (!turnoStartTime) { showNotification('Nenhum turno em andamento para finalizar.','error'); return; }
+    const totalVendas = historicoTurno.reduce((s,t)=>s+t.total,0);
+    const totalSaques = saquesTurno.reduce((s,t)=>s+t.valor,0);
+    const fim = Date.now();
+    historicoCompleto.unshift({
+        data: new Date(fim).toLocaleString('pt-BR'),
+        dataInicioMS: parseInt(turnoStartTime),
+        dataFimMS: fim,
+        totalVendas,
+        totalSaques,
+        vendas: [...historicoTurno],
+        saques: [...saquesTurno]
+    });
+    showNotification(`Turno finalizado. Vendas: R$ ${totalVendas.toFixed(2).replace('.',',')}`, 'success');
+    historicoTurno = [];
+    saquesTurno = [];
+    turnoStartTime = null;
+    saveState();
+    stopWorkTimeCounter();
+    renderizarHistorico();
+    renderizarSaques();
+    atualizarTotalDoDia();
+});
+
+/* BAIXAR / EXPORTAR CSV */
+function toCSV(lines, filename) {
+    const csvContent = 'data:text/csv;charset=utf-8,' + lines.join('\n');
+    const encoded = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encoded);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+baixarHistoricoBtn.addEventListener('click', ()=>{
+    if (historicoTurno.length===0 && saquesTurno.length===0) { showNotification('Não há histórico para baixar.','error'); return; }
+    const lines = [];
+    const totalVendas = historicoTurno.reduce((s,t)=>s+t.total,0);
+    const totalSaques = saquesTurno.reduce((s,t)=>s+t.valor,0);
+    lines.push('Resumo do Turno Atual');
+    lines.push(`Total de Vendas;${totalVendas.toFixed(2).replace('.',',')}`);
+    lines.push(`Total de Saques;${totalSaques.toFixed(2).replace('.',',')}`);
+    lines.push('');
+    lines.push('Tipo;Data e Hora;Valor;Forma de Pagamento');
+    historicoTurno.forEach(t => lines.push(`Venda;${t.data};${t.total.toFixed(2).replace('.',',')};${t.pagamento}`));
+    saquesTurno.forEach(s => lines.push(`Saque;${s.data};${s.valor.toFixed(2).replace('.',',')};`));
+    toCSV(lines, 'historico_turno_atual.csv');
+});
+
+baixarHistoricoOntemBtn.addEventListener('click', ()=>{
+    if (historicoCompleto.length===0) { showNotification('Não há turnos finalizados (Anterior) para baixar.','error'); return; }
+    const ultimo = historicoCompleto[0];
+    const lines = [];
+    lines.push(`Resumo do Turno Finalizado em: ${ultimo.data}`);
+    lines.push(`Total de Vendas;${ultimo.totalVendas.toFixed(2).replace('.',',')}`);
+    lines.push(`Total de Saques;${ultimo.totalSaques.toFixed(2).replace('.',',')}`);
+    lines.push('');
+    lines.push('Tipo;Data e Hora;Valor;Forma de Pagamento');
+    ultimo.vendas.forEach(t=> lines.push(`Venda;${t.data};${t.total.toFixed(2).replace('.',',')};${t.pagamento}`));
+    ultimo.saques.forEach(s=> lines.push(`Saque;${s.data};${s.valor.toFixed(2).replace('.',',')};`));
+    toCSV(lines, `historico_turno_anterior_${ultimo.data.split(' ')[0].replace(/\//g,'-')}.csv`);
+});
+
+/* VER histórico completo */
+if (verHistoricoCompletoBtn) {
+    verHistoricoCompletoBtn.addEventListener('click', ()=>{
+        if (historicoCompleto.length===0) { showNotification('Não há histórico de turnos finalizados.','error'); return; }
+        historicoCompletoDiv.style.display = 'block';
+        historicoCompletoList.innerHTML = '';
+        historicoCompleto.forEach(turno=>{
+            const div = document.createElement('div');
+            div.style.marginBottom = '12px';
+            div.innerHTML = `<h4 style="margin:6px 0;">Turno de ${turno.data}</h4>
+                             <div>Total Vendas: R$ ${turno.totalVendas.toFixed(2).replace('.',',')}</div>
+                             <div>Total Saques: R$ ${turno.totalSaques.toFixed(2).replace('.',',')}</div>
+                             <div style="margin-top:6px;"><strong>Vendas:</strong><ul>${turno.vendas.map(v=>`<li>${v.data} — R$ ${v.total.toFixed(2).replace('.',',')} (${v.pagamento})</li>`).join('')}</ul></div>
+                             <div><strong>Saques:</strong><ul>${turno.saques.map(s=>`<li>${s.data} — R$ ${s.valor.toFixed(2).replace('.',',')}</li>`).join('')}</ul></div>`;
+            historicoCompletoList.appendChild(div);
+        });
+    });
+}
+
+/* Imprimir relatório do dia (turno atual) */
+imprimirRelatorioDiaBtn.addEventListener('click', ()=>{
+    const totalVendas = historicoTurno.reduce((s,t)=>s+t.total,0);
+    const totalSaques = saquesTurno.reduce((s,t)=>s+t.valor,0);
+    const valorFinal = totalVendas - totalSaques;
+    let html = '<h4>Relatório do Turno Atual</h4>';
+    html += `<p>Data: ${new Date().toLocaleString('pt-BR')}</p>`;
+    html += `<p>Total Vendas: R$ ${totalVendas.toFixed(2).replace('.',',')}</p>`;
+    html += `<p>Total Saques: R$ ${totalSaques.toFixed(2).replace('.',',')}</p>`;
+    html += `<p><strong>Final do Caixa: R$ ${valorFinal.toFixed(2).replace('.',',')}</strong></p>`;
+    html += '<hr>';
+    html += '<h4>Vendas</h4>';
+    html += '<ul>' + historicoTurno.map(v=>`<li>${v.data} — R$ ${v.total.toFixed(2).replace('.',',')} (${v.pagamento})</li>`).join('') + '</ul>';
+    html += '<h4>Saques</h4>';
+    html += '<ul>' + saquesTurno.map(s=>`<li>${s.data} — R$ ${s.valor.toFixed(2).replace('.',',')}</li>`).join('') + '</ul>';
+    printReportDiv.innerHTML = html;
+    window.print();
+});
+
+/* ===========================
+   IMPRIMIR RECIBO
+   =========================== */
+function printReceipt(transacao, pixPayload = null) {
+    // preenche recibo
+    reciboDataSpan.textContent = transacao.data;
+    reciboTipoSpan.textContent = transacao.pagamento;
+    reciboTotalSpan.textContent = `R$ ${transacao.total.toFixed(2).replace('.',',')}`;
+
+    // CPF opcional
+    const cpfRaw = cpfNotaInput.value.replace(/\D/g,'');
+    if (cpfRaw && cpfRaw.length>=11) {
+        reciboCpfDiv.style.display = 'block';
+        reciboCpfSpan.textContent = cpfRaw.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4');
+    } else {
+        reciboCpfDiv.style.display = 'none';
+        reciboCpfSpan.textContent = '';
+    }
+
+    if (transacao.pagamento === 'PIX' && pixPayload) {
+        reciboPixSection.style.display = 'block';
+        reciboQrcodeDiv.innerHTML = '';
+        // QR reduzido para recibo
+        new QRCode(reciboQrcodeDiv, { text: pixPayload, width:100, height:100, correctLevel: QRCode.CorrectLevel.H });
+    } else {
+        reciboPixSection.style.display = 'none';
+        reciboQrcodeDiv.innerHTML = '';
+    }
+
+    // aciona impressão
+    window.print();
+
+    // Limpa seção PIX após impressão (pequeno delay)
+    setTimeout(()=> {
+        reciboPixSection.style.display = 'none';
+    }, 500);
+}
+
+/* MODAL helpers */
+function showModal(modal) { modal.style.display='flex'; }
+function hideModal(modal) { modal.style.display='none'; }
+
+/* ===========================
+   LÓGICA DE VALIDAÇÃO CPF
+   =========================== */
+
+/* 1. Valida o dígito verificador do CPF */
+function validateCPF(cpf) {
+    cpf = cpf.replace(/[^\d]/g, '');
+    if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+
+    let sum = 0;
+    let remainder;
+    
+    // Calcula o primeiro dígito verificador
+    for (let i = 1; i <= 9; i++) sum += parseInt(cpf.substring(i - 1, i)) * (11 - i);
+    remainder = (sum * 10) % 11;
+    if ((remainder === 10) || (remainder === 11)) remainder = 0;
+    if (remainder !== parseInt(cpf.substring(9, 10))) return false;
+
+    // Calcula o segundo dígito verificador
+    sum = 0;
+    for (let i = 1; i <= 10; i++) sum += parseInt(cpf.substring(i - 1, i)) * (12 - i);
+    remainder = (sum * 10) % 11;
+    if ((remainder === 10) || (remainder === 11)) remainder = 0;
+    if (remainder !== parseInt(cpf.substring(10, 11))) return false;
+
+    return true;
+}
+
+/* 2. Atualiza o display de status (APENAS CPF) */
+function updateCpfStatus() {
+    const cpfRaw = cpfNotaInput.value.replace(/\D/g,'');
+    
+    if (cpfRaw.length > 0 && cpfRaw.length < 11) {
+        cpfStatusDiv.textContent = 'CPF incompleto...';
+        cpfStatusDiv.className = 'muted';
+        return;
+    }
+
+    if (cpfRaw.length === 11) {
+        const isCpfValid = validateCPF(cpfRaw);
+        
+        if (isCpfValid) {
+            cpfStatusDiv.textContent = 'CPF VÁLIDO (Matematicamente)';
+            cpfStatusDiv.className = 'valid';
+        } else {
+            cpfStatusDiv.textContent = 'CPF INVÁLIDO!';
+            cpfStatusDiv.className = 'invalid';
+        }
+    } else {
+        cpfStatusDiv.textContent = 'Aguardando CPF...';
+        cpfStatusDiv.className = 'muted';
+    }
+}
+
+/* 3. Listeners para formatação e validação */
+cpfNotaInput.addEventListener('input', (e)=>{
+    // Formatação visual do CPF (máscara)
+    let v = e.target.value.replace(/\D/g,'').slice(0,11);
+    if (v.length <= 3) e.target.value = v;
+    else if (v.length <= 6) e.target.value = v.replace(/(\d{3})(\d+)/,'$1.$2');
+    else if (v.length <= 9) e.target.value = v.replace(/(\d{3})(\d{3})(\d+)/,'$1.$2.$3');
+    else e.target.value = v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4');
+    
+    updateCpfStatus();
+});
+
+// REMOVIDO: dataNascimentoInput.addEventListener('change', updateCpfStatus);
+
+/* LOAD initial */
+window.addEventListener('load', ()=>{
+    loadState();
+    renderizarCarrinho();
+    renderizarHistorico();
+    renderizarSaques();
+    atualizarTotalDoDia();
+});
+
+/* ocultar modais ao clicar fora do conteúdo */
+document.querySelectorAll('.modal-overlay').forEach(m=>{
+    m.addEventListener('click', e=>{
+        if (e.target === m) m.style.display='none';
+    });
+});
+
+/* prevenção de fechamento inesperado: salvar antes de unload */
+window.addEventListener('beforeunload', saveState);
+
+/* fim do script */
+</script>
+</body>
+</html>
