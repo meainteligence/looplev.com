@@ -1,0 +1,12 @@
+{
+  "name": "looplev-com",
+  "version": "1.0.0",
+  "description": "Projeto Caixa Loop",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "supabase": "^1.15.2" 
+  }
+}
